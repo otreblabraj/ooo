@@ -158,6 +158,7 @@ class BotBinance:
     def __init__(self, cfg: Config, db: DB, api: BinanceC2C, tg: Telegram, tg_fallos: Telegram):
         self.cfg, self.db, self.api, self.tg, self.tg_fallos = cfg, db, api, tg, tg_fallos
         self._fallos: dict[str, int] = {}
+        self._error_lector = ""
 
     async def procesar_nueva(self, order_no: str) -> None:
         """Lee el detalle, extrae los datos, valida y deja la orden aprobada o por aprobar."""
@@ -187,15 +188,26 @@ class BotBinance:
             self.db.transicion(order_no, Estado.NUEVA, Estado.APROBADA, "aprobación automática")
             await self.tg.enviar(f"📥 Nueva orden → BNC\n{ficha(datos)}")
 
+    async def leer_una_vez(self) -> None:
+        """Una vuelta del lector. El mismo error se avisa una sola vez (no cada pocos segundos)."""
+        try:
+            for o in await self.api.ordenes_compra_pendientes(self.cfg.binance_fiat):
+                order_no = str(o.get("orderNumber") or o.get("adOrderNo"))
+                if self.db.insertar_orden(order_no, _monto_aprox(o), o):
+                    await self.procesar_nueva(order_no)
+        except Exception as e:
+            texto = str(e)[:500]
+            if texto != self._error_lector:
+                self._error_lector = texto
+                await self.tg_fallos.enviar(f"⚠️ Lector Binance: {html.escape(texto)}")
+            return
+        if self._error_lector:
+            self._error_lector = ""
+            await self.tg_fallos.enviar("✅ Lector Binance recuperado")
+
     async def lector(self) -> None:
         while True:
-            try:
-                for o in await self.api.ordenes_compra_pendientes(self.cfg.binance_fiat):
-                    order_no = str(o.get("orderNumber") or o.get("adOrderNo"))
-                    if self.db.insertar_orden(order_no, _monto_aprox(o), o):
-                        await self.procesar_nueva(order_no)
-            except Exception as e:
-                await self.tg_fallos.enviar(f"⚠️ Lector Binance: {html.escape(str(e))[:500]}")
+            await self.leer_una_vez()
             await asyncio.sleep(self.cfg.poll_segundos)
 
     async def sigue_sin_pagar(self, order_no: str) -> bool:
@@ -306,7 +318,17 @@ class BotBNC:
                 await self.tg_fallos.enviar(f"⚠️ Orden <code>{o.order_no}</code> pagada, pero no pude publicar "
                                             f"el comprobante en el grupo: {html.escape(str(e))[:300]}")
 
+    async def recuperar_pendientes(self) -> None:
+        """Al arrancar: órdenes que quedaron a mitad de camino por un cierre inesperado."""
+        for o in self.db.por_estado(Estado.PAGANDO):
+            await self._revision(o, Estado.PAGANDO, "El bot se detuvo mientras confirmaba este pago",
+                                 urgente=True)
+        for o in self.db.por_estado(Estado.BENEFICIARIO_OK):
+            await self._revision(o, Estado.BENEFICIARIO_OK,
+                                 "El bot se detuvo antes de pagar (no se confirmó nada). Usa /reintentar")
+
     async def correr(self) -> None:
+        await self.recuperar_pendientes()
         while True:
             for o in self.db.por_estado(Estado.APROBADA):
                 await self.pagar(o)

@@ -208,3 +208,20 @@ async def test_telegram_fallos_nunca_lanza():
     assert await Telegram("t", "-200", cliente, nunca_falla=True).enviar("x") == {}
     with pytest.raises(httpx.ConnectError):
         await Telegram("t", "-100", cliente).enviar("x")
+
+
+async def test_error_del_lector_se_avisa_una_sola_vez(entorno):
+    db, tg, api, hub, bb, bnc = entorno()
+    fallos = entorno.fallos
+    llamadas = {"n": 0}
+
+    async def falla(fiat):
+        llamadas["n"] += 1
+        if llamadas["n"] <= 3:
+            raise RuntimeError("HTTP 503")
+        return []
+
+    api.ordenes_compra_pendientes = falla
+    for _ in range(4):
+        await bb.leer_una_vez()
+    assert [m for m, _ in fallos.mensajes] == ["⚠️ Lector Binance: HTTP 503", "✅ Lector Binance recuperado"]

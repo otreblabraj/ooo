@@ -17,7 +17,31 @@ Diseño completo: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 | 5 | Comprobante | `bnc/pago.py` + `BotBinance.subidor` | Captura el recibo, lo publica en el grupo, lo sube al chat de Binance y marca pagada |
 | — | Hub | `bots.py` → `Hub` | Botones ✅/❌, códigos OTP y comandos en el grupo |
 
-## Instalación
+## Inicio rápido (panel de control)
+
+1. Instala **Python 3.11 o superior** desde https://www.python.org/downloads/. En Windows, marca
+   la casilla *Add python.exe to PATH* durante la instalación.
+2. Descomprime el ZIP en una carpeta.
+3. Abre **`Iniciar Panel BNC.bat`** con doble clic (Windows) o `./iniciar_panel.sh` (macOS/Linux).
+   La primera vez instala todo automáticamente; tarda unos minutos.
+4. Se abre el panel en tu navegador: **http://127.0.0.1:8765**
+
+### Qué puedes hacer en el panel
+
+- **Control**: encender y apagar el bot, elegir **simulación** o **real** (pide confirmación), encender
+  solo la lectura de Binance, ver una lista de lo que falta configurar, el pagado de hoy, las órdenes
+  recientes y la actividad en vivo. Al apagar, el bot termina el pago en curso antes de detenerse.
+  Si hace falta, aparece el botón **Forzar apagado**.
+- **Cuentas BNC**: agregar, editar, borrar y elegir la cuenta **en uso** (usuario, clave, cuenta de
+  origen 0191… y preguntas de seguridad). Las claves se guardan solo en tu computadora
+  (`data/cuentas.json`) y el panel nunca las vuelve a mostrar.
+- **Ajustes**: API de Binance, Telegram (grupo principal y de fallos), correo de códigos, límites y
+  una clave opcional para el panel.
+
+El panel solo se abre desde tu computadora (127.0.0.1). Si cierras la ventana del panel, el bot se
+apaga de forma segura.
+
+## Instalación manual
 
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -29,7 +53,7 @@ cp .env.example .env    # y llénalo
 ## Puesta en marcha por fases
 
 1. **Solo lectura de Binance.** Déjalo correr y confirma que las órdenes llegan bien al grupo:
-   `python -m bnc_bot --solo-binance`
+   `python -m bnc_bot --solo-binance`, o desde el panel con la casilla "solo la lectura de Binance".
 2. **Mapear BNC.** Corre `python -m playwright codegen <URL de BNC>`, haz el recorrido a mano
    y copia los selectores en `bnc_bot/bnc/selectores.py`. Mientras quede un `TODO`, el bot no toca BNC.
 3. **Simulación** (`SIMULACION=true`): llena todo en BNC y verifica el resumen, pero **no confirma**.

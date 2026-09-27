@@ -11,7 +11,10 @@ queda como vista humana del proceso.
 from __future__ import annotations
 
 import asyncio
+import html
 import json
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -20,7 +23,7 @@ import httpx
 
 class Telegram:
     def __init__(self, token: str, chat_id: str, cliente: httpx.AsyncClient | None = None,
-                 nunca_falla: bool = False):
+                 nunca_falla: bool = False, nombre: str = "telegram"):
         """`nunca_falla=True` (grupo de fallos): si Telegram falla, se imprime en consola en vez de
         lanzar la excepción, para que un aviso de error no tumbe al bot que lo envía."""
         self._base = f"https://api.telegram.org/bot{token}"
@@ -28,10 +31,15 @@ class Telegram:
         self._http = cliente or httpx.AsyncClient(timeout=70)
         self._activo = bool(token and chat_id)
         self._nunca_falla = nunca_falla
+        self.nombre = nombre
+
+    def _registrar(self, texto: str) -> None:
+        """Copia cada mensaje en la consola (el panel la muestra como registro de actividad)."""
+        plano = html.unescape(re.sub(r"<[^>]+>", "", texto)).replace("\n", " · ")
+        print(f"{datetime.now():%H:%M:%S} [{self.nombre}] {plano}", flush=True)
 
     async def _post(self, metodo: str, **kw) -> dict:
         if not self._activo:
-            print(f"[telegram desactivado] {metodo}: {kw.get('data') or kw.get('json')}")
             return {}
         try:
             r = await self._http.post(f"{self._base}/{metodo}", **kw)
@@ -42,16 +50,18 @@ class Telegram:
         except Exception as e:
             if not self._nunca_falla:
                 raise
-            print(f"[telegram fallos] no se pudo enviar ({e}): {kw.get('data') or kw.get('json')}")
+            print(f"{datetime.now():%H:%M:%S} [{self.nombre}] ⚠️ Telegram no disponible: {e}", flush=True)
             return {}
 
     async def enviar(self, texto: str, botones: list[tuple[str, str]] | None = None) -> dict:
+        self._registrar(texto)
         payload: dict = {"chat_id": self.chat_id, "text": texto, "parse_mode": "HTML"}
         if botones:
             payload["reply_markup"] = {"inline_keyboard": [[{"text": t, "callback_data": d} for t, d in botones]]}
         return await self._post("sendMessage", json=payload)
 
     async def enviar_foto(self, foto: Path, caption: str = "") -> dict:
+        self._registrar(f"[foto] {caption}")
         with foto.open("rb") as f:
             return await self._post(
                 "sendPhoto",

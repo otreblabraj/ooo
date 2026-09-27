@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel BNC</title>
+<style>
+:root{
+  --ground:#EDF1EF; --surface:#FFFFFF; --sunk:#F4F7F6; --ink:#14201C; --muted:#5E6E68; --line:#D3DDD9;
+  --accent:#0E7C6B; --accent-ink:#FFFFFF; --accent-soft:#D8EEE9;
+  --on:#1E8E4E; --on-soft:#DDF2E5; --off:#7D8A86; --off-soft:#E7ECEA;
+  --warn:#9A5F00; --warn-soft:#FBEBCF; --bad:#B3261E; --bad-soft:#F8DEDB;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ground:#0D1412; --surface:#151F1C; --sunk:#111A17; --ink:#E2EBE7; --muted:#93A59F; --line:#26352F;
+    --accent:#3FC1A9; --accent-ink:#06201B; --accent-soft:#17362F;
+    --on:#4CC983; --on-soft:#173524; --off:#7F8F8A; --off-soft:#1D2926;
+    --warn:#E3B04B; --warn-soft:#3A2C10; --bad:#F2877E; --bad-soft:#3C1F1C;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font:15px/1.5 var(--sans);padding-inline:16px;padding-block:0 48px}
+.wrap{max-width:1120px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-block:18px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:36px;height:36px;border-radius:10px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:800;letter-spacing:-.02em}
+h1{font-size:20px;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px}
+nav{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+nav button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:600;padding:7px 14px;border-radius:9px;cursor:pointer}
+nav button[aria-selected="true"]{background:var(--accent-soft);color:var(--ink)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.pill{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13px;border-radius:999px;padding:4px 12px;letter-spacing:.02em}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.pill.on{background:var(--on-soft);color:var(--on)} .pill.off{background:var(--off-soft);color:var(--off)}
+.pill.wait{background:var(--warn-soft);color:var(--warn)}
+.pill.on::before{animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){.pill.on::before{animation:none}}
+
+section[hidden]{display:none}
+.grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card h2{font-size:15px;margin:0 0 12px;letter-spacing:.01em}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+.power{display:flex;flex-direction:column;gap:16px}
+.power-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.big{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0}
+.meta{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-weight:700;border-radius:10px;padding:10px 18px;border:1px solid transparent;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.stop{background:var(--bad);color:#fff}
+.btn.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+.btn.small{padding:6px 12px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mode{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--sunk);cursor:pointer;text-align:left;font:inherit;color:var(--ink)}
+.mode b{display:block}
+.mode span{font-size:12.5px;color:var(--muted)}
+.mode[aria-pressed="true"].sim{border-color:var(--accent);background:var(--accent-soft)}
+.mode[aria-pressed="true"].real{border-color:var(--bad);background:var(--bad-soft)}
+.confirm{border:1px solid var(--bad);background:var(--bad-soft);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+
+.note{font-size:13px;color:var(--muted);margin:0}
+.note.warn{color:var(--warn)}
+.msg{font-size:13.5px;border-radius:10px;padding:8px 12px}
+.msg.err{background:var(--bad-soft);color:var(--bad)} .msg.ok{background:var(--on-soft);color:var(--on)}
+
+.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.checks li{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.checks li:last-child{border-bottom:0}
+.tag{font-size:12px;font-weight:700;border-radius:6px;padding:1px 8px;white-space:nowrap}
+.tag.ok{background:var(--on-soft);color:var(--on)} .tag.no{background:var(--warn-soft);color:var(--warn)}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-block:16px}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.stat small{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.stat b{font-size:22px;font-variant-numeric:tabular-nums}
+.stat.alert b{color:var(--bad)}
+
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td code{font-family:var(--mono);font-size:12.5px}
+.st{font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 7px;white-space:nowrap;background:var(--off-soft);color:var(--muted)}
+.st.COMPLETADA{background:var(--on-soft);color:var(--on)}
+.st.REVISION_MANUAL,.st.RECHAZADA{background:var(--bad-soft);color:var(--bad)}
+.st.POR_APROBAR,.st.PAGANDO{background:var(--warn-soft);color:var(--warn)}
+.st.APROBADA,.st.BENEFICIARIO_OK,.st.PAGADA,.st.COMPROBANTE_SUBIDO{background:var(--accent-soft);color:var(--accent)}
+.empty{color:var(--muted);font-size:14px;padding:12px 0}
+
+pre.log{margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:12px;font:12.5px/1.55 var(--mono);max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.log .f{color:var(--bad)}
+
+.accounts{display:flex;flex-direction:column;gap:10px}
+.acct{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--sunk)}
+.acct.active{border-color:var(--accent);background:var(--accent-soft)}
+.acct b{display:block}
+.acct .meta code{font-family:var(--mono)}
+form{display:flex;flex-direction:column;gap:12px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted)}
+input,textarea,select{font:inherit;font-size:14px;font-weight:400;color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:9px;padding:8px 10px;width:100%}
+input[type=checkbox]{width:auto}
+label.inline,label.check{flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-weight:500;font-size:14px}
+fieldset{border:1px solid var(--line);border-radius:12px;padding:14px;margin:0;display:flex;flex-direction:column;gap:12px}
+legend{font-weight:700;padding:0 6px}
+.hint{font-weight:400;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">B</div>
+      <div><h1>Panel BNC</h1><div class="sub">Pagos automáticos P2P · esta computadora</div></div>
+    </div>
+    <nav role="tablist" aria-label="Secciones">
+      <button role="tab" aria-selected="true" data-tab="control">Control</button>
+      <button role="tab" aria-selected="false" data-tab="cuentas">Cuentas BNC</button>
+      <button role="tab" aria-selected="false" data-tab="ajustes">Ajustes</button>
+    </nav>
+  </header>
+
+  <!-- ───── CONTROL ───── -->
+  <section id="tab-control">
+    <div class="grid">
+      <div class="card power">
+        <div class="power-top">
+          <div>
+            <span id="pill" class="pill off">APAGADO</span>
+            <p class="big" id="titulo">El bot está apagado</p>
+            <div class="meta" id="meta">—</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="modes" role="group" aria-label="Modo de pago">
+            <button class="mode sim" id="m-sim" aria-pressed="true"><b>🧪 Simulación</b><span>Llena el pago en BNC pero no lo confirma</span></button>
+            <button class="mode real" id="m-real" aria-pressed="false"><b>🔴 Real</b><span>Confirma los pagos y mueve dinero</span></button>
+          </div>
+          <div class="confirm" id="confirm-real" hidden>
+            <strong>¿Pasar a modo real?</strong>
+            <span class="note" style="color:inherit">A partir del próximo encendido el bot confirmará transferencias en BNC y marcará las órdenes como pagadas en Binance.</span>
+            <div class="row"><button class="btn stop small" id="si-real">Sí, modo real</button><button class="btn ghost small" id="no-real">Cancelar</button></div>
+          </div>
+          <p class="note warn" id="nota-modo" hidden>El cambio de modo se aplica la próxima vez que enciendas el bot.</p>
+        </div>
+
+        <label class="check"><input type="checkbox" id="solo-binance"> Encender solo la lectura de Binance (no abre BNC)</label>
+
+        <div class="row">
+          <button class="btn primary" id="encender">Encender</button>
+          <button class="btn ghost" id="apagar" disabled>Apagar</button>
+          <button class="btn ghost small" id="forzar" hidden>Forzar apagado</button>
+        </div>
+        <p class="note" id="nota-apagar">Al apagar, el bot termina el pago que esté haciendo y luego se detiene.</p>
+        <div id="msg-control" class="msg" hidden></div>
+      </div>
+
+      <div class="card">
+        <h2>Antes de encender</h2>
+        <ul class="checks" id="checks"></ul>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><small>Pagado hoy</small><b id="s-hoy">0,00</b></div>
+      <div class="stat"><small>Completadas</small><b id="s-ok">0</b></div>
+      <div class="stat"><small>Por aprobar</small><b id="s-apr">0</b></div>
+      <div class="stat" id="st-rev"><small>En revisión</small><b id="s-rev">0</b></div>
+    </div>
+
+    <div class="stack">
+      <div class="card">
+        <h2>Órdenes recientes</h2>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Orden</th><th>Estado</th><th>Titular</th><th>Banco</th><th style="text-align:right">Monto (Bs)</th><th>Hora</th></tr></thead>
+          <tbody id="ordenes"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>Actividad</h2>
+        <pre class="log" id="log">Sin actividad todavía.</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── CUENTAS ───── -->
+  <section id="tab-cuentas" hidden>
+    <div class="grid">
+      <div class="card">
+        <h2>Tus cuentas BNC</h2>
+        <p class="note" style="margin-bottom:12px">El bot paga desde la cuenta marcada como <b>En uso</b>. Si cambias de cuenta con el bot encendido, apágalo y vuelve a encenderlo.</p>
+        <div class="accounts" id="lista-cuentas"></div>
+      </div>
+      <div class="card">
+        <h2 id="titulo-form">Agregar cuenta</h2>
+        <form id="form-cuenta" autocomplete="off">
+          <input type="hidden" id="c-id">
+          <label>Nombre para reconocerla<input id="c-alias" placeholder="Ej. BNC principal" required></label>
+          <label>Usuario de BNC en línea<input id="c-usuario" required></label>
+          <label>Clave de BNC <span class="hint" id="c-clave-hint">Se guarda solo en esta computadora</span><input id="c-clave" type="password"></label>
+          <label>Cuenta desde la que se paga (20 dígitos)<input id="c-cuenta" inputmode="numeric" placeholder="0191…" required></label>
+          <label>Preguntas de seguridad <span class="hint">Una por línea: pregunta = respuesta. Vacío = no cambiar.</span><textarea id="c-preguntas" rows="3" placeholder="nombre de tu primera mascota = Luna"></textarea></label>
+          <div class="row"><button class="btn primary" type="submit" id="c-guardar">Guardar cuenta</button><button class="btn ghost" type="button" id="c-cancelar" hidden>Cancelar edición</button></div>
+          <div id="msg-cuenta" class="msg" hidden></div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── AJUSTES ───── -->
+  <section id="tab-ajustes" hidden>
+    <form id="form-ajustes" class="card" autocomplete="off">
+      <p class="note">Los campos secretos se muestran vacíos: escríbelos solo si quieres cambiarlos. Los cambios se aplican al volver a encender el bot.</p>
+      <div id="campos" class="stack"></div>
+      <div class="row"><button class="btn primary" type="submit">Guardar ajustes</button></div>
+      <div id="msg-ajustes" class="msg" hidden></div>
+    </form>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const bs = n => Number(n || 0).toLocaleString("es-VE", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+let ultimo = null;
+
+async function api(ruta, datos) {
+  const op = datos === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json", "X-Panel": "1"}, body: JSON.stringify(datos)};
+  const r = await fetch(ruta, op);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "No se pudo completar la acción");
+  return j;
+}
+function aviso(el, texto, ok) { el.hidden = !texto; el.className = "msg " + (ok ? "ok" : "err"); el.textContent = texto || ""; }
+
+// ── pestañas
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll("section[id^=tab-]").forEach(s => s.hidden = s.id !== "tab-" + b.dataset.tab);
+  if (b.dataset.tab === "cuentas") cargarCuentas();
+  if (b.dataset.tab === "ajustes") cargarAjustes();
+}));
+
+// ── control
+function duracion(seg) {
+  const h = Math.floor(seg / 3600), m = Math.floor(seg % 3600 / 60);
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+function pintar(e) {
+  ultimo = e;
+  const b = e.bot, pill = $("#pill");
+  if (b.apagando) { pill.className = "pill wait"; pill.textContent = "APAGANDO"; $("#titulo").textContent = "Terminando el pago en curso…"; }
+  else if (b.corriendo) { pill.className = "pill on"; pill.textContent = "ENCENDIDO"; $("#titulo").textContent = b.solo_binance ? "Leyendo órdenes de Binance" : "Pagando órdenes en BNC"; }
+  else { pill.className = "pill off"; pill.textContent = "APAGADO"; $("#titulo").textContent = "El bot está apagado"; }
+  const partes = [];
+  if (b.corriendo && b.desde) partes.push("Encendido hace " + duracion(Date.now() / 1000 - b.desde));
+  partes.push(e.simulacion ? "Modo simulación" : "Modo real");
+  if (e.cuenta_activa) partes.push(`Paga desde ${e.cuenta_activa.alias} (…${e.cuenta_activa.cuenta.slice(-4)})`);
+  if (!b.corriendo && b.ultimo_codigo !== null && b.ultimo_codigo !== 0) partes.push(`Se detuvo con error (código ${b.ultimo_codigo}): revisa la actividad`);
+  $("#meta").textContent = partes.join(" · ");
+  $("#encender").disabled = b.corriendo;
+  $("#apagar").disabled = !b.corriendo || b.apagando;
+  $("#forzar").hidden = !b.apagando;
+  $("#solo-binance").disabled = b.corriendo;
+  $("#m-sim").setAttribute("aria-pressed", e.simulacion);
+  $("#m-real").setAttribute("aria-pressed", !e.simulacion);
+
+  const c = e.chequeos, item = (t, ok, det) => `<li><span>${t}${det ? `<br><span class="hint">${det}</span>` : ""}</span><span class="tag ${ok ? "ok" : "no"}">${ok ? "Listo" : "Falta"}</span></li>`;
+  $("#checks").innerHTML =
+    item("API de Binance", c.binance, c.binance ? "" : "Ajustes → Binance") +
+    item("Grupo principal de Telegram", c.telegram, c.telegram ? "" : "Ajustes → Telegram") +
+    item("Grupo de fallos", c.fallos, c.fallos ? "" : "Sin él, los fallos van al grupo principal") +
+    item("Correo de códigos BNC", c.correo, c.correo ? "" : "Sin él, escribes los códigos a mano") +
+    item("Cuenta BNC en uso", c.cuenta_bnc, c.cuenta_bnc ? "" : "Pestaña Cuentas BNC") +
+    item("Pantallas de BNC mapeadas", c.selectores_faltantes === 0, c.selectores_faltantes ? `Faltan ${c.selectores_faltantes} selectores: solo funciona «solo Binance»` : "");
+
+  const o = e.ordenes, n = k => o.conteo[k] || 0;
+  $("#s-hoy").textContent = bs(o.pagado_hoy);
+  $("#s-ok").textContent = n("COMPLETADA");
+  $("#s-apr").textContent = n("POR_APROBAR");
+  $("#s-rev").textContent = n("REVISION_MANUAL");
+  $("#st-rev").classList.toggle("alert", n("REVISION_MANUAL") > 0);
+  $("#ordenes").innerHTML = o.lista.length ? o.lista.map(r => `<tr>
+      <td><code>…${esc(r.order_no.slice(-8))}</code></td>
+      <td><span class="st ${esc(r.estado)}">${esc(r.estado.replace(/_/g, " "))}</span></td>
+      <td>${esc(r.titular || "—")}</td><td>${esc(r.banco || "—")}</td>
+      <td class="num">${bs(r.monto)}</td><td class="meta">${esc((r.actualizada || "").slice(11, 16))}</td></tr>`).join("")
+    : `<tr><td colspan="6" class="empty">Todavía no hay órdenes.</td></tr>`;
+
+  const log = $("#log"), abajo = log.scrollHeight - log.scrollTop - log.clientHeight < 30;
+  log.innerHTML = e.log.length ? e.log.map(l => /\[FALLOS\]|Traceback|Error/.test(l) ? `<span class="f">${esc(l)}</span>` : esc(l)).join("\n") : "Sin actividad todavía.";
+  if (abajo) log.scrollTop = log.scrollHeight;
+}
+async function refrescar() { try { pintar(await api("/api/estado")); } catch (e) { $("#meta").textContent = "No hay conexión con el panel."; } }
+
+$("#encender").addEventListener("click", async () => {
+  aviso($("#msg-control"), "");
+  try { pintar(await api("/api/encender", {solo_binance: $("#solo-binance").checked})); } catch (e) { aviso($("#msg-control"), e.message); }
+});
+$("#apagar").addEventListener("click", async () => { try { pintar(await api("/api/apagar", {})); } catch (e) { aviso($("#msg-control"), e.message); } });
+$("#forzar").addEventListener("click", async () => { try { pintar(await api("/api/apagar", {forzar: true})); } catch (e) { aviso($("#msg-control"), e.message); } });
+
+async function ponerModo(sim) {
+  await api("/api/ajustes", {SIMULACION: sim});
+  $("#nota-modo").hidden = !(ultimo && ultimo.bot.corriendo);
+  refrescar();
+}
+$("#m-sim").addEventListener("click", () => { $("#confirm-real").hidden = true; ponerModo(true); });
+$("#m-real").addEventListener("click", () => { if (ultimo && !ultimo.simulacion) return; $("#confirm-real").hidden = false; });
+$("#no-real").addEventListener("click", () => $("#confirm-real").hidden = true);
+$("#si-real").addEventListener("click", () => { $("#confirm-real").hidden = true; ponerModo(false); });
+
+// ── cuentas
+let cuentas = {cuentas: [], activa: null};
+function pintarCuentas() {
+  const l = $("#lista-cuentas");
+  l.innerHTML = cuentas.cuentas.length ? cuentas.cuentas.map(c => {
+    const act = c.id === cuentas.activa;
+    return `<div class="acct${act ? " active" : ""}">
+      <div><b>${esc(c.alias)} ${act ? '<span class="tag ok">En uso</span>' : ""}</b>
+      <span class="meta">Usuario ${esc(c.usuario)} · Cuenta <code>…${esc(c.cuenta_origen.slice(-4))}</code> · ${c.preguntas} pregunta(s)</span></div>
+      <div class="row">
+        ${act ? "" : `<button class="btn ghost small" data-act="${c.id}">Usar esta</button>`}
+        <button class="btn ghost small" data-edit="${c.id}">Editar</button>
+        <button class="btn ghost small" data-del="${c.id}">Borrar</button>
+      </div></div>`;
+  }).join("") : `<p class="empty">Todavía no agregaste cuentas. Usa el formulario.</p>`;
+  l.querySelectorAll("[data-act]").forEach(b => b.onclick = async () => { cuentas = await api("/api/cuentas/activar", {id: b.dataset.act}); pintarCuentas(); refrescar(); });
+  l.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => editar(b.dataset.edit));
+  l.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (b.dataset.seguro !== "1") { b.dataset.seguro = "1"; b.textContent = "¿Seguro? Borrar"; b.classList.add("stop"); return; }
+    cuentas = await api("/api/cuentas/borrar", {id: b.dataset.del}); pintarCuentas(); refrescar();
+  });
+}
+async function cargarCuentas() { cuentas = await api("/api/cuentas"); pintarCuentas(); }
+function limpiarForm() {
+  ["#c-id", "#c-alias", "#c-usuario", "#c-clave", "#c-cuenta", "#c-preguntas"].forEach(s => $(s).value = "");
+  $("#titulo-form").textContent = "Agregar cuenta"; $("#c-cancelar").hidden = true;
+  $("#c-clave-hint").textContent = "Se guarda solo en esta computadora";
+}
+function editar(id) {
+  const c = cuentas.cuentas.find(x => x.id === id); if (!c) return;
+  $("#c-id").value = c.id; $("#c-alias").value = c.alias; $("#c-usuario").value = c.usuario;
+  $("#c-cuenta").value = c.cuenta_origen; $("#c-clave").value = ""; $("#c-preguntas").value = "";
+  $("#titulo-form").textContent = "Editar " + c.alias; $("#c-cancelar").hidden = false;
+  $("#c-clave-hint").textContent = "Déjala vacía para no cambiarla";
+}
+$("#c-cancelar").addEventListener("click", limpiarForm);
+$("#form-cuenta").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const preguntas = $("#c-preguntas").value.split("\n").map(l => l.trim()).filter(l => l.includes("="))
+    .map(l => l.split("=").map(x => x.trim()).join("=")).join(";");
+  try {
+    cuentas = await api("/api/cuentas", {id: $("#c-id").value || null, alias: $("#c-alias").value, usuario: $("#c-usuario").value,
+      clave: $("#c-clave").value, cuenta_origen: $("#c-cuenta").value, preguntas});
+    aviso($("#msg-cuenta"), "Cuenta guardada.", true); limpiarForm(); pintarCuentas(); refrescar();
+  } catch (e) { aviso($("#msg-cuenta"), e.message); }
+});
+
+// ── ajustes
+async function cargarAjustes() {
+  const a = await api("/api/ajustes"), secciones = {};
+  a.campos.forEach(c => (secciones[c.seccion] ||= []).push(c));
+  $("#campos").innerHTML = Object.entries(secciones).map(([s, cs]) => `<fieldset><legend>${esc(s)}</legend><div class="fields">${cs.map(c => {
+    if (c.tipo === "bool") return `<label class="inline"><input type="checkbox" name="${c.clave}" ${["true","1","si","sí"].includes(String(c.valor).toLowerCase()) ? "checked" : ""}> ${esc(c.etiqueta)}</label>`;
+    const ph = c.tipo === "secreto" ? (c.tiene_valor ? "•••••••• (guardado)" : "Sin configurar") : "";
+    return `<label>${esc(c.etiqueta)}<input name="${c.clave}" id="a-${c.clave}" type="${c.tipo === "secreto" ? "password" : "text"}" value="${esc(c.valor)}" placeholder="${ph}" ${c.tipo === "numero" ? 'inputmode="decimal"' : ""}></label>`;
+  }).join("")}</div></fieldset>`).join("");
+}
+$("#form-ajustes").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const datos = {};
+  ev.target.querySelectorAll("input[name]").forEach(i => datos[i.name] = i.type === "checkbox" ? i.checked : i.value);
+  try { await api("/api/ajustes", datos); aviso($("#msg-ajustes"), "Ajustes guardados. Se aplican al volver a encender el bot.", true); cargarAjustes(); refrescar(); }
+  catch (e) { aviso($("#msg-ajustes"), e.message); }
+});
+
+refrescar();
+setInterval(refrescar, 3000);
+</script>
+</body>
+</html>
