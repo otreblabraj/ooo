@@ -10,6 +10,7 @@ import asyncio
 from .binance_client import BinanceC2C
 from .bots import BotBinance, BotBNC, Hub
 from .config import cargar
+from .correo import LectorCorreo
 from .db import DB
 from .telegram import Telegram
 
@@ -24,10 +25,14 @@ async def main(solo_binance: bool) -> None:
     tg_fallos = Telegram(cfg.tg_token_fallos, cfg.tg_chat_fallos, nunca_falla=True)
     api = BinanceC2C(cfg.binance_api_key, cfg.binance_api_secret, cfg.binance_base_url)
 
-    hub = Hub(cfg, db, tg_hub, tg_fallos)
+    correo = LectorCorreo(cfg.correo_imap, cfg.correo_usuario, cfg.correo_clave,
+                          cfg.correo_remitente, cfg.correo_patron, cfg.correo_carpeta)
+    hub = Hub(cfg, db, tg_hub, tg_fallos, correo)
     binance = BotBinance(cfg, db, api, tg_binance, tg_fallos)
     tareas = [hub.correr(), binance.lector()]
     modo = "🧪 SIMULACIÓN" if cfg.simulacion else "🔴 REAL"
+    if not correo.activo:
+        await tg_fallos.enviar("⚠️ Lector de correo sin configurar: los códigos de BNC habrá que escribirlos a mano.")
 
     if not solo_binance:
         from .bnc.session import SesionBNC

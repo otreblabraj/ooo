@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import asyncio
 import html
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
 from .binance_client import ESTADO_SIN_PAGAR, BinanceC2C
 from .config import Config
+from .correo import LectorCorreo
 from .db import DB, Estado, Orden, TransicionInvalida
 from .extraccion import DatosPago, extraer
 from .telegram import Telegram
@@ -41,18 +43,52 @@ def ficha(d: DatosPago) -> str:
 
 # ─────────────────────────── Hub (panel de control) ───────────────────────────
 class Hub:
-    def __init__(self, cfg: Config, db: DB, tg: Telegram, tg_fallos: Telegram):
+    def __init__(self, cfg: Config, db: DB, tg: Telegram, tg_fallos: Telegram,
+                 correo: LectorCorreo | None = None):
         self.cfg, self.db, self.tg, self.tg_fallos = cfg, db, tg, tg_fallos
+        self.correo = correo
         self._otp: asyncio.Future[str] | None = None
         self._otp_lock = asyncio.Lock()
 
-    async def pedir_otp(self, pregunta: str, timeout: int = 180) -> str:
+    async def pedir_otp(self, pregunta: str, timeout: int = 180, por_correo: bool = True) -> str:
+        """Devuelve el código que pide BNC.
+
+        Si el lector de correo está configurado, busca el código en el correo de BNC y lo
+        devuelve apenas llega. Mientras tanto también acepta que lo escribas en el grupo
+        principal: gana lo que llegue primero. `por_correo=False` para preguntas de seguridad.
+        """
         async with self._otp_lock:
-            self._otp = asyncio.get_running_loop().create_future()
-            await self.tg.enviar(pregunta)
+            loop = asyncio.get_running_loop()
+            manual: asyncio.Future[str] = loop.create_future()
+            self._otp = manual
+            usa_correo = por_correo and self.correo is not None and self.correo.activo
+            desde = datetime.now(timezone.utc)
+            await self.tg.enviar(pregunta + ("\n📧 Buscando el código en el correo… "
+                                             "(si prefieres, escríbelo aquí)" if usa_correo else ""))
+            tarea_correo = (loop.create_task(self.correo.esperar_codigo(desde, timeout))
+                            if usa_correo else None)
+            pendientes: set[asyncio.Future] = {manual} | ({tarea_correo} if tarea_correo else set())
+            fin = loop.time() + timeout
             try:
-                return await asyncio.wait_for(self._otp, timeout)
+                while pendientes and (restante := fin - loop.time()) > 0:
+                    listos, pendientes = await asyncio.wait(
+                        pendientes, timeout=restante, return_when=asyncio.FIRST_COMPLETED)
+                    if manual in listos:
+                        return manual.result()
+                    if tarea_correo in listos:
+                        error = tarea_correo.exception()
+                        codigo = None if error else tarea_correo.result()
+                        if codigo:
+                            await self.tg.enviar(f"📧 Código recibido por correo e ingresado (••••{codigo[-2:]})")
+                            return codigo
+                        await self.tg_fallos.enviar(
+                            "⚠️ No pude leer el código de BNC en el correo "
+                            f"({html.escape(str(error)) if error else 'no llegó a tiempo'}). "
+                            "Escríbelo en el grupo principal.")
+                raise TimeoutError("No llegó el código de BNC a tiempo")
             finally:
+                if tarea_correo and not tarea_correo.done():
+                    tarea_correo.cancel()
                 self._otp = None
 
     async def on_callback(self, data: str) -> str:

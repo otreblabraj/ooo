@@ -49,7 +49,7 @@ async def asegurar_beneficiario(
     await page.locator(B["guardar"]).click()
 
     if await existe(page, B["otp_input"], 4000):
-        codigo = await pedir_otp(f"🔐 BNC pide código para REGISTRAR a {datos.titular} (…{datos.cuenta[-4:]}):")
+        codigo = await pedir_otp(f"🔐 BNC pide código para REGISTRAR a {datos.titular} (…{datos.cuenta[-4:]})")
         await escribir(page, B["otp_input"], codigo)
         await page.locator(B["otp_boton"]).click()
 

@@ -36,6 +36,23 @@ cp .env.example .env    # y llénalo
 4. **Pagos reales pequeños** con `SIMULACION=false` y `UMBRAL_APROBACION=0` (apruebas cada pago con ✅).
 5. **Automático**: sube `UMBRAL_APROBACION` y los pagos por debajo de ese monto salen sin intervención.
 
+## Códigos de BNC por correo (automático)
+
+BNC envía sus códigos al correo. Cuando el banco pide uno (al iniciar sesión, al registrar un beneficiario
+o al pagar), el bot:
+
+1. Avisa en el grupo principal: `🔐 BNC pide código… 📧 Buscando el código en el correo…`
+2. Revisa tu bandeja por IMAP cada 2 segundos y toma solo el correo de BNC que llegó después de la
+   solicitud. Los códigos viejos se ignoran y cada correo se usa una sola vez.
+3. Saca el código, lo escribe en BNC y confirma en el grupo sin mostrarlo completo: `📧 Código recibido por correo e ingresado (••••13)`.
+
+Si el correo falla o no llega en 3 minutos, avisa en el **grupo de fallos** y puedes escribir el código a
+mano en el grupo principal; gana lo que llegue primero. Las preguntas de seguridad nunca se buscan en el correo.
+
+Configuración en `.env`: `CORREO_USUARIO`, `CORREO_CLAVE` y `CORREO_REMITENTE` (la dirección desde la que
+escribe BNC). Con Gmail, `CORREO_CLAVE` debe ser una **contraseña de aplicación** (requiere verificación
+en 2 pasos), no tu clave normal. Si el código no se detecta solo, define `CORREO_PATRON`.
+
 ## Grupos de Telegram
 
 - **Grupo principal** (`TELEGRAM_CHAT_ID`): flujo normal. Órdenes nuevas, aprobaciones ✅/❌, códigos OTP,

@@ -69,7 +69,7 @@ async def confirmar_y_capturar(
     try:
         if await existe(page, P["otp_input"], 5000):
             codigo = await pedir_otp(
-                f"🔐 BNC pide código para PAGAR {formato_bs(datos.monto)} Bs a {datos.titular}:")
+                f"🔐 BNC pide código para PAGAR {formato_bs(datos.monto)} Bs a {datos.titular}")
             await escribir(page, P["otp_input"], codigo)
             await page.locator(P["otp_boton"]).click()
 

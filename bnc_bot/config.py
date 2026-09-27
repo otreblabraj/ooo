@@ -50,6 +50,13 @@ class Config:
     umbral_aprobacion: Decimal = Decimal("0")
     similitud_nombre_min: float = 0.6
 
+    correo_imap: str = ""
+    correo_usuario: str = ""
+    correo_clave: str = field(default="", repr=False)
+    correo_remitente: str = ""
+    correo_patron: str = ""
+    correo_carpeta: str = "INBOX"
+
     db_path: str = "data/bnc_bot.sqlite3"
     poll_segundos: int = 10
 
@@ -84,6 +91,12 @@ def cargar() -> Config:
         monto_max_dia=Decimal(os.getenv("MONTO_MAX_DIA", "500000")),
         umbral_aprobacion=Decimal(os.getenv("UMBRAL_APROBACION", "0")),
         similitud_nombre_min=float(os.getenv("SIMILITUD_NOMBRE_MIN", "0.6")),
+        correo_imap=os.getenv("CORREO_IMAP", "imap.gmail.com"),
+        correo_usuario=os.getenv("CORREO_USUARIO", ""),
+        correo_clave=os.getenv("CORREO_CLAVE", ""),
+        correo_remitente=os.getenv("CORREO_REMITENTE", ""),
+        correo_patron=os.getenv("CORREO_PATRON", ""),
+        correo_carpeta=os.getenv("CORREO_CARPETA", "INBOX"),
         db_path=os.getenv("DB_PATH", "data/bnc_bot.sqlite3"),
         poll_segundos=int(os.getenv("POLL_SEGUNDOS", "10")),
     )

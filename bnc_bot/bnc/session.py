@@ -39,7 +39,7 @@ async def existe(page: Page, selector: str, timeout_ms: int = 1500) -> bool:
 class SesionBNC:
     """Mantiene UNA sola pestaña abierta con la sesión de BNC."""
 
-    def __init__(self, cfg: Config, pedir_otp: Callable[[str], Awaitable[str]],
+    def __init__(self, cfg: Config, pedir_otp: Callable[..., Awaitable[str]],
                  avisar: Callable[[str], Awaitable[None]],
                  avisar_fallo: Callable[[str], Awaitable[None]]):
         self.cfg = cfg
@@ -98,7 +98,8 @@ class SesionBNC:
             pregunta = (await page.locator(L["pregunta_texto"]).inner_text()).strip().lower()
             respuesta = next((r for p, r in self.cfg.bnc_preguntas.items() if p in pregunta), None)
             if respuesta is None:
-                respuesta = await self._pedir_otp(f"BNC pregunta: «{pregunta}». Responde en el grupo:")
+                respuesta = await self._pedir_otp(
+                    f"BNC pregunta: «{pregunta}». Responde en el grupo:", por_correo=False)
             await escribir(page, L["pregunta_input"], respuesta)
             await page.locator(L["pregunta_boton"]).click()
             await pausa_humana(1, 2)
@@ -108,7 +109,7 @@ class SesionBNC:
         await pausa_humana(2, 3)
 
         if await existe(page, L["otp_input"], 4000):
-            codigo = await self._pedir_otp("🔐 BNC pide código para INICIAR SESIÓN. Envíalo en el grupo:")
+            codigo = await self._pedir_otp("🔐 BNC pide código para INICIAR SESIÓN")
             await escribir(page, L["otp_input"], codigo)
             await page.locator(L["otp_boton"]).click()
 
