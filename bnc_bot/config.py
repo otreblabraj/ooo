@@ -34,6 +34,8 @@ class Config:
     tg_token_comprobante: str
     tg_chat_id: str
     tg_admin_id: int
+    tg_token_fallos: str
+    tg_chat_fallos: str       # grupo exclusivo de fallos (vacío = usa el grupo principal)
 
     bnc_url: str
     bnc_usuario: str
@@ -69,6 +71,8 @@ def cargar() -> Config:
         tg_token_comprobante=os.getenv("TELEGRAM_TOKEN_COMPROBANTE") or hub,
         tg_chat_id=os.getenv("TELEGRAM_CHAT_ID", ""),
         tg_admin_id=int(os.getenv("TELEGRAM_ADMIN_ID", "0") or 0),
+        tg_token_fallos=os.getenv("TELEGRAM_TOKEN_FALLOS") or hub,
+        tg_chat_fallos=os.getenv("TELEGRAM_CHAT_ID_FALLOS") or os.getenv("TELEGRAM_CHAT_ID", ""),
         bnc_url=os.getenv("BNC_URL", ""),
         bnc_usuario=os.getenv("BNC_USUARIO", ""),
         bnc_clave=os.getenv("BNC_CLAVE", ""),

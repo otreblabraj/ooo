@@ -21,23 +21,28 @@ async def main(solo_binance: bool) -> None:
     tg_binance = Telegram(cfg.tg_token_binance, cfg.tg_chat_id)
     tg_bnc = Telegram(cfg.tg_token_bnc, cfg.tg_chat_id)
     tg_comp = Telegram(cfg.tg_token_comprobante, cfg.tg_chat_id)
+    tg_fallos = Telegram(cfg.tg_token_fallos, cfg.tg_chat_fallos, nunca_falla=True)
     api = BinanceC2C(cfg.binance_api_key, cfg.binance_api_secret, cfg.binance_base_url)
 
-    hub = Hub(cfg, db, tg_hub)
-    binance = BotBinance(cfg, db, api, tg_binance)
+    hub = Hub(cfg, db, tg_hub, tg_fallos)
+    binance = BotBinance(cfg, db, api, tg_binance, tg_fallos)
     tareas = [hub.correr(), binance.lector()]
     modo = "🧪 SIMULACIÓN" if cfg.simulacion else "🔴 REAL"
 
     if not solo_binance:
         from .bnc.session import SesionBNC
 
-        sesion = SesionBNC(cfg, hub.pedir_otp, tg_bnc.enviar)
-        bnc = BotBNC(cfg, db, sesion, hub, tg_bnc, tg_comp, binance)
+        sesion = SesionBNC(cfg, hub.pedir_otp, tg_bnc.enviar, tg_fallos.enviar)
+        bnc = BotBNC(cfg, db, sesion, hub, tg_bnc, tg_comp, tg_fallos, binance)
         tareas += [bnc.correr(), sesion.mantener_viva(), binance.subidor()]
 
     await tg_hub.enviar(f"🤖 Bots BNC arrancados — modo {modo}"
                         + (" — solo lectura Binance" if solo_binance else ""))
-    await asyncio.gather(*tareas)
+    try:
+        await asyncio.gather(*tareas)
+    except Exception as e:
+        await tg_fallos.enviar(f"💥 Los bots se detuvieron por un error: {e}")
+        raise
 
 
 if __name__ == "__main__":

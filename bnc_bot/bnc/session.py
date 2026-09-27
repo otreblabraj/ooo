@@ -40,10 +40,12 @@ class SesionBNC:
     """Mantiene UNA sola pestaña abierta con la sesión de BNC."""
 
     def __init__(self, cfg: Config, pedir_otp: Callable[[str], Awaitable[str]],
-                 avisar: Callable[[str], Awaitable[None]]):
+                 avisar: Callable[[str], Awaitable[None]],
+                 avisar_fallo: Callable[[str], Awaitable[None]]):
         self.cfg = cfg
         self._pedir_otp = pedir_otp
         self._avisar = avisar
+        self._avisar_fallo = avisar_fallo
         self._pw = None
         self._ctx: BrowserContext | None = None
         self.page: Page | None = None
@@ -123,4 +125,4 @@ class SesionBNC:
                     if self.page and await self.activa():
                         await self.page.mouse.move(random.randint(100, 800), random.randint(100, 600))
                 except Exception as e:  # la próxima operación hará login de nuevo
-                    await self._avisar(f"⚠️ Keep-alive BNC falló: {e}")
+                    await self._avisar_fallo(f"⚠️ Keep-alive BNC falló: {e}")

@@ -36,7 +36,17 @@ cp .env.example .env    # y llénalo
 4. **Pagos reales pequeños** con `SIMULACION=false` y `UMBRAL_APROBACION=0` (apruebas cada pago con ✅).
 5. **Automático**: sube `UMBRAL_APROBACION` y los pagos por debajo de ese monto salen sin intervención.
 
-## Comandos en el grupo
+## Grupos de Telegram
+
+- **Grupo principal** (`TELEGRAM_CHAT_ID`): flujo normal. Órdenes nuevas, aprobaciones ✅/❌, códigos OTP,
+  comprobantes y confirmaciones.
+- **Grupo de fallos** (`TELEGRAM_CHAT_ID_FALLOS`): **todo** error va **únicamente** aquí. Eso incluye órdenes
+  rechazadas por límites, datos de pago ilegibles, revisiones manuales, pagos que salieron pero no se
+  pudieron subir o marcar en Binance, caídas de la sesión BNC y errores del lector.
+  Agrega a este grupo el bot de fallos y también el bot Hub, para poder usar los comandos desde ahí.
+  Las respuestas salen en el mismo grupo donde escribiste el comando.
+
+## Comandos (en cualquiera de los dos grupos)
 
 - `/estado`: órdenes por estado, total pagado hoy y modo.
 - `/reintentar <orden>`: vuelve a encolar una orden en revisión. Se bloquea si ya se pulsó "confirmar" en el banco.

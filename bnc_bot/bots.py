@@ -4,6 +4,10 @@
   Hub                  → aprobaciones ✅/❌, códigos OTP y comandos desde el grupo
   BotBNC               → Bots 1, 3, 4 y 5: sesión, beneficiario, pago y comprobante
   BotBinance.subidor   → Bot 5 (lado Binance): sube la foto al chat y marca pagada
+
+Dos grupos de Telegram:
+  • principal: el flujo normal (órdenes nuevas, aprobaciones, OTP, comprobantes);
+  • fallos:    TODO error, rechazo o revisión manual va ÚNICAMENTE aquí.
 """
 from __future__ import annotations
 
@@ -37,8 +41,8 @@ def ficha(d: DatosPago) -> str:
 
 # ─────────────────────────── Hub (panel de control) ───────────────────────────
 class Hub:
-    def __init__(self, cfg: Config, db: DB, tg: Telegram):
-        self.cfg, self.db, self.tg = cfg, db, tg
+    def __init__(self, cfg: Config, db: DB, tg: Telegram, tg_fallos: Telegram):
+        self.cfg, self.db, self.tg, self.tg_fallos = cfg, db, tg, tg_fallos
         self._otp: asyncio.Future[str] | None = None
         self._otp_lock = asyncio.Lock()
 
@@ -66,7 +70,10 @@ class Hub:
             return str(e)[:190]
         return "Acción desconocida"
 
-    async def on_texto(self, texto: str) -> None:
+    async def on_texto(self, texto: str, chat_id: str = "") -> None:
+        # Las respuestas a comandos salen en el mismo grupo donde escribiste
+        es_fallos = bool(chat_id) and chat_id == str(self.tg_fallos.chat_id) != str(self.tg.chat_id)
+        responder = self.tg_fallos.enviar if es_fallos else self.tg.enviar
         if not texto.startswith("/"):
             if self._otp and not self._otp.done():
                 self._otp.set_result(texto)
@@ -81,38 +88,39 @@ class Hub:
                         lineas.append(f"{est.value}: {n}")
                 lineas.append(f"Pagado hoy: {formato_bs(self.db.total_pagado_hoy())} Bs")
                 lineas.append("Modo: " + ("🧪 SIMULACIÓN" if self.cfg.simulacion else "🔴 REAL"))
-                await self.tg.enviar("\n".join(lineas))
+                await responder("\n".join(lineas))
             elif cmd == "/reintentar" and args:
                 if self.db.llego_a_pagar(args[0]):
-                    await self.tg.enviar("⛔ Esa orden llegó a confirmarse en BNC: no se reintenta. "
+                    await responder("⛔ Esa orden llegó a confirmarse en BNC: no se reintenta. "
                                          "Verifica en el banco y usa /pagada o /rechazar.")
                     return
                 self.db.transicion(args[0], Estado.REVISION_MANUAL, Estado.APROBADA, "reintento manual")
-                await self.tg.enviar(f"🔁 Orden <code>{args[0]}</code> vuelve a la cola de BNC")
+                await responder(f"🔁 Orden <code>{args[0]}</code> vuelve a la cola de BNC")
             elif cmd == "/pagada" and args:
                 o = self.db.obtener(args[0])
                 if not o or not o.comprobante or not Path(o.comprobante).exists():
-                    await self.tg.enviar("Esa orden no tiene comprobante guardado; márcala a mano en Binance.")
+                    await responder("Esa orden no tiene comprobante guardado; márcala a mano en Binance.")
                     return
                 self.db.transicion(args[0], Estado.REVISION_MANUAL, Estado.PAGADA, "verificada por admin")
-                await self.tg.enviar(f"👍 Orden <code>{args[0]}</code> marcada PAGADA → se sube a Binance")
+                await responder(f"👍 Orden <code>{args[0]}</code> marcada PAGADA → se sube a Binance")
             elif cmd == "/rechazar" and args:
                 self.db.transicion(args[0], Estado.REVISION_MANUAL, Estado.RECHAZADA, "rechazada por admin")
-                await self.tg.enviar(f"❌ Orden <code>{args[0]}</code> rechazada")
+                await responder(f"❌ Orden <code>{args[0]}</code> rechazada")
             else:
-                await self.tg.enviar("Comandos: /estado · /reintentar &lt;orden&gt; · "
+                await responder("Comandos: /estado · /reintentar &lt;orden&gt; · "
                                      "/pagada &lt;orden&gt; · /rechazar &lt;orden&gt;")
         except TransicionInvalida as e:
-            await self.tg.enviar(f"⚠️ {html.escape(str(e))}")
+            await responder(f"⚠️ {html.escape(str(e))}")
 
     async def correr(self) -> None:
-        await self.tg.escuchar(self.cfg.tg_admin_id, self.on_callback, self.on_texto)
+        await self.tg.escuchar(self.cfg.tg_admin_id, self.on_callback, self.on_texto,
+                               chats_extra=(self.tg_fallos.chat_id,))
 
 
 # ─────────────────────────── Bot Binance ───────────────────────────
 class BotBinance:
-    def __init__(self, cfg: Config, db: DB, api: BinanceC2C, tg: Telegram):
-        self.cfg, self.db, self.api, self.tg = cfg, db, api, tg
+    def __init__(self, cfg: Config, db: DB, api: BinanceC2C, tg: Telegram, tg_fallos: Telegram):
+        self.cfg, self.db, self.api, self.tg, self.tg_fallos = cfg, db, api, tg, tg_fallos
         self._fallos: dict[str, int] = {}
 
     async def procesar_nueva(self, order_no: str) -> None:
@@ -121,7 +129,7 @@ class BotBinance:
             datos = extraer(await self.api.detalle(order_no))
         except Exception as e:
             self.db.transicion(order_no, Estado.NUEVA, Estado.REVISION_MANUAL, f"extracción: {e}")
-            await self.tg.enviar(f"⚠️ Orden <code>{order_no}</code>: no pude leer los datos de pago\n"
+            await self.tg_fallos.enviar(f"⚠️ Orden <code>{order_no}</code>: no pude leer los datos de pago\n"
                                  f"{html.escape(str(e))}")
             return
         self.db.actualizar_campos(order_no, monto=str(datos.monto), nombre_kyc=datos.nombre_kyc, titular=datos.titular,
@@ -134,7 +142,7 @@ class BotBinance:
         motivos = "\n".join(f"• {html.escape(m)}" for m in r.motivos)
         if r.decision is Decision.RECHAZAR:
             self.db.transicion(order_no, Estado.NUEVA, Estado.RECHAZADA, "; ".join(r.motivos))
-            await self.tg.enviar(f"🚫 NO se paga\n{ficha(datos)}\n{motivos}")
+            await self.tg_fallos.enviar(f"🚫 NO se paga\n{ficha(datos)}\n{motivos}")
         elif r.decision is Decision.MANUAL:
             self.db.transicion(order_no, Estado.NUEVA, Estado.POR_APROBAR, "; ".join(r.motivos))
             await self.tg.enviar(f"📥 Nueva orden — requiere aprobación\n{ficha(datos)}\n{motivos}",
@@ -151,7 +159,7 @@ class BotBinance:
                     if self.db.insertar_orden(order_no, _monto_aprox(o), o):
                         await self.procesar_nueva(order_no)
             except Exception as e:
-                await self.tg.enviar(f"⚠️ Lector Binance: {html.escape(str(e))[:500]}")
+                await self.tg_fallos.enviar(f"⚠️ Lector Binance: {html.escape(str(e))[:500]}")
             await asyncio.sleep(self.cfg.poll_segundos)
 
     async def sigue_sin_pagar(self, order_no: str) -> bool:
@@ -175,7 +183,7 @@ class BotBinance:
                     if n >= 5:
                         actual = self.db.obtener(o.order_no)
                         self.db.transicion(o.order_no, actual.estado, Estado.REVISION_MANUAL, str(e))
-                        await self.tg.enviar(f"🆘 Orden <code>{o.order_no}</code>: el pago SALIÓ del banco pero "
+                        await self.tg_fallos.enviar(f"🆘 Orden <code>{o.order_no}</code>: el pago SALIÓ del banco pero "
                                              f"no pude subirlo/marcarlo en Binance. Hazlo a mano.\n"
                                              f"{html.escape(str(e))[:300]}")
             await asyncio.sleep(self.cfg.poll_segundos)
@@ -192,14 +200,14 @@ def _monto_aprox(o: dict) -> Decimal:
 # ─────────────────────────── Bot BNC ───────────────────────────
 class BotBNC:
     def __init__(self, cfg: Config, db: DB, sesion, hub: Hub, tg_bnc: Telegram,
-                 tg_comprobante: Telegram, binance: BotBinance):
+                 tg_comprobante: Telegram, tg_fallos: Telegram, binance: BotBinance):
         self.cfg, self.db, self.sesion, self.hub = cfg, db, sesion, hub
-        self.tg, self.tg_comp, self.binance = tg_bnc, tg_comprobante, binance
+        self.tg, self.tg_comp, self.tg_fallos, self.binance = tg_bnc, tg_comprobante, tg_fallos, binance
 
     async def _revision(self, o: Orden, desde: Estado, motivo: str, urgente: bool = False) -> None:
         self.db.transicion(o.order_no, desde, Estado.REVISION_MANUAL, motivo)
         icono = "🆘 VERIFICA EN EL BANCO si el pago salió" if urgente else "⚠️ Revisión manual"
-        await self.tg.enviar(f"{icono} — orden <code>{o.order_no}</code>\n{html.escape(motivo)[:500]}\n"
+        await self.tg_fallos.enviar(f"{icono} — orden <code>{o.order_no}</code>\n{html.escape(motivo)[:500]}\n"
                              f"Usa /reintentar, /pagada o /rechazar")
 
     async def pagar(self, o: Orden) -> None:
@@ -231,7 +239,10 @@ class BotBNC:
                 await verificar_resumen(page, datos)
 
                 if self.cfg.simulacion:
-                    await self._revision(o, estado, "🧪 SIMULACIÓN: formulario lleno y verificado, NO se confirmó")
+                    # No es un fallo: se informa en el grupo principal
+                    self.db.transicion(o.order_no, estado, Estado.REVISION_MANUAL, "simulación")
+                    await self.tg.enviar(f"🧪 SIMULACIÓN — orden <code>{o.order_no}</code>: formulario lleno y "
+                                         f"resumen verificado, NO se confirmó")
                     return
 
                 # A partir de aquí el dinero puede salir: marcar ANTES de pulsar confirmar.
@@ -256,7 +267,8 @@ class BotBNC:
                     f"Orden <code>{o.order_no}</code> · Ref {res.referencia or '—'}",
                 )
             except Exception as e:  # el pago ya está hecho; solo falló el aviso
-                print(f"No se pudo enviar el comprobante al grupo: {e}")
+                await self.tg_fallos.enviar(f"⚠️ Orden <code>{o.order_no}</code> pagada, pero no pude publicar "
+                                            f"el comprobante en el grupo: {html.escape(str(e))[:300]}")
 
     async def correr(self) -> None:
         while True:

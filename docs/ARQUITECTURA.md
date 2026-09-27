@@ -26,6 +26,21 @@ perdido o un reinicio podría hacer que una orden se pague dos veces o nunca. Po
 - **Telegram** es la vista humana: cada bot publica ahí con su propio token (puedes crear 4 bots en
   @BotFather para que se vean separados) y ahí apruebas y envías los códigos OTP.
 
+## Grupo de fallos
+
+Los errores no se mezclan con el flujo normal: todo aviso de fallo sale **solo** por el grupo de fallos
+(`TELEGRAM_CHAT_ID_FALLOS`), con su propio bot opcional (`TELEGRAM_TOKEN_FALLOS`). Ese envío nunca lanza
+excepción: si Telegram falla, el aviso se imprime en la consola y el bot sigue trabajando.
+
+| Va al grupo de fallos | Sigue en el grupo principal |
+|---|---|
+| 🚫 Orden rechazada por límites | 📥 Orden nueva / por aprobar |
+| ⚠️ No se pudieron leer los datos de pago | ✅ ❌ Aprobaciones |
+| ⚠️ / 🆘 Revisión manual (antes o después de confirmar) | 🔐 Pedidos de OTP |
+| 🆘 Pago hecho pero no subido/marcado en Binance | 📝 Beneficiario registrado |
+| ⚠️ Error del lector Binance / keep-alive BNC | 🧾 Comprobante y 🏁 orden completada |
+| 💥 Caída general de los bots | 🧪 Resultado de simulación |
+
 ## Estados
 
 | Estado | Significado |

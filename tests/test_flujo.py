@@ -15,7 +15,8 @@ from tests.conftest import detalle_orden
 
 
 class FakeTG:
-    def __init__(self):
+    def __init__(self, chat_id="-100"):
+        self.chat_id = chat_id
         self.mensajes, self.fotos = [], []
 
     async def enviar(self, texto, botones=None):
@@ -75,11 +76,12 @@ def entorno(cfg, monkeypatch, tmp_path):
 
     def armar(config=cfg, detalle=None):
         db = DB(":memory:")
-        tg = FakeTG()
+        tg, fallos = FakeTG("-100"), FakeTG("-200")
         api = FakeAPI(detalle or detalle_orden())
-        hub = bots.Hub(config, db, tg)
-        bb = bots.BotBinance(config, db, api, tg)
-        bnc = bots.BotBNC(config, db, FakeSesion(), hub, tg, tg, bb)
+        hub = bots.Hub(config, db, tg, fallos)
+        bb = bots.BotBinance(config, db, api, tg, fallos)
+        bnc = bots.BotBNC(config, db, FakeSesion(), hub, tg, tg, fallos, bb)
+        armar.fallos = fallos
         return db, tg, api, hub, bb, bnc
 
     armar.llamadas = llamadas
@@ -141,11 +143,14 @@ async def test_error_tras_confirmar_no_se_reintenta(entorno, monkeypatch):
     await bb.procesar_nueva(no)
     await bnc.pagar(db.obtener(no))
     assert db.obtener(no).estado is Estado.REVISION_MANUAL
-    assert "VERIFICA EN EL BANCO" in tg.mensajes[-1][0]
+    fallos = entorno.fallos
+    assert "VERIFICA EN EL BANCO" in fallos.mensajes[-1][0]
+    assert not any("VERIFICA" in m for m, _ in tg.mensajes)  # el fallo va SOLO al grupo de fallos
 
-    await hub.on_texto(f"/reintentar {no}")
+    # El comando desde el grupo de fallos se responde en el grupo de fallos
+    await hub.on_texto(f"/reintentar {no}", "-200")
     assert db.obtener(no).estado is Estado.REVISION_MANUAL  # bloqueado: evita pago doble
-    assert "no se reintenta" in tg.mensajes[-1][0]
+    assert "no se reintenta" in fallos.mensajes[-1][0]
 
 
 async def test_orden_cancelada_en_binance_no_se_paga(entorno):
@@ -165,3 +170,41 @@ async def test_otp_por_telegram(entorno):
     await asyncio.sleep(0)
     await hub.on_texto("123456")
     assert await tarea == "123456"
+
+
+async def test_fallos_solo_en_grupo_de_fallos(entorno):
+    # Orden rechazada por límite + error de extracción: nada de eso en el grupo principal
+    db, tg, api, hub, bb, bnc = entorno(detalle=detalle_orden(totalPrice="999999"))
+    db.insertar_orden("A", Decimal("0"), {})
+    await bb.procesar_nueva("A")
+    api.det = {"orderNumber": "B", "totalPrice": "10", "payMethods": []}
+    db.insertar_orden("B", Decimal("0"), {})
+    await bb.procesar_nueva("B")
+
+    fallos = entorno.fallos
+    assert db.obtener("A").estado is Estado.RECHAZADA
+    assert db.obtener("B").estado is Estado.REVISION_MANUAL
+    assert len(fallos.mensajes) == 2
+    assert tg.mensajes == []
+
+
+async def test_simulacion_va_al_grupo_principal(entorno, cfg):
+    db, tg, api, hub, bb, bnc = entorno(config=replace(cfg, simulacion=True))
+    db.insertar_orden("22900000000000001", Decimal("0"), {})
+    await bb.procesar_nueva("22900000000000001")
+    await bnc.pagar(db.obtener("22900000000000001"))
+    assert "SIMULACIÓN" in tg.mensajes[-1][0]
+    assert entorno.fallos.mensajes == []
+
+
+async def test_telegram_fallos_nunca_lanza():
+    import httpx
+    from bnc_bot.telegram import Telegram
+
+    def caido(request):
+        raise httpx.ConnectError("sin red")
+
+    cliente = httpx.AsyncClient(transport=httpx.MockTransport(caido))
+    assert await Telegram("t", "-200", cliente, nunca_falla=True).enviar("x") == {}
+    with pytest.raises(httpx.ConnectError):
+        await Telegram("t", "-100", cliente).enviar("x")
